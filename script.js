@@ -1,3 +1,5 @@
+let db = {};
+
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged }
 from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
@@ -31,7 +33,7 @@ window.loginWithGoogle = async function () {
 
         console.log("登入成功：", user.displayName);
         isLoggedIn = true;
-        document.getElementById("login-area").style.display = "none";
+        
 
         document.getElementById("user-info").innerText =
             `已登入：${user.displayName}`;
@@ -55,8 +57,7 @@ async function setupUserDoc(uid) {
 
     const snap = await getDoc(CLOUD_DOC);
 
-    if (snap.exists()) {
-        db = snap.data() || {
+    const defaultDb = {
     total: 0,
     houses: [],
     students: [],
@@ -64,17 +65,24 @@ async function setupUserDoc(uid) {
     customNames: {},
     soundOn: true
 };
-    } else {
-        db = {
-            total: 0,
-            houses: [],
-            students: [],
-            rules: [],
-            customNames: {},
-            soundOn: true
-        };
-        await setDoc(CLOUD_DOC, db);
-    }
+
+
+    if (snap.exists()) {
+    db = {
+        total: 0,
+        houses: [],
+        students: [],
+        rules: [],
+        customNames: {},
+        soundOn: true,
+        maxStageIdx: 0,
+        ...snap.data()
+    };
+} else {
+    db = defaultDb;
+    await setDoc(CLOUD_DOC, db);
+}
+
 onSnapshot(CLOUD_DOC, (snapshot) => {
     if (!snapshot.exists()) return;
 
@@ -307,6 +315,7 @@ function submitScore(v) {
 function closePop() { document.getElementById('mask').style.display='none'; document.getElementById('pop').style.display='none'; }
 
 function addRule() { 
+    if (!requireLogin()) return;
     let tn = document.getElementById('rule-n'), tv = document.getElementById('rule-v'), tt = document.getElementById('rule-target'), t = tn.value, v = parseInt(tv.value), target = tt.value;
     if(t) { db.rules.push({t, v, target}); tn.value = ""; playSfx('up'); render(); } 
 saveCloud();
@@ -428,7 +437,7 @@ function pickEmoji(e) {
 function render() {
     // --- 1. 決定奇獸狀態與形態 ---
     let curC = getActiveCreature();
-    
+    if (db.maxStageIdx === undefined) db.maxStageIdx = 0;
     // 更新最高形態索引
     curC.g.forEach((g, index) => {
         if (db.total >= g.t && index > db.maxStageIdx) {
@@ -436,7 +445,7 @@ function render() {
         }
     });
 
-    let curG = curC.g[db.maxStageIdx];
+    let curG = curC.g[Math.min(db.maxStageIdx, curC.g.length - 1)];
 
     // 進化通知
     if (lastStage && lastStage !== curG.l) {
@@ -1167,16 +1176,25 @@ function requireLogin() {
 }
 
 
-window.drawLuckyStudent = drawLuckyStudent;
-window.openLeaderboard = openLeaderboard;
-window.closeLeaderboard = closeLeaderboard;
-window.renderLBContent = renderLBContent;
-window.resetDrawList = resetDrawList;
-window.toggleSound = toggleSound;
-window.toggleEdit = toggleEdit;
-window.showPage = showPage;
-window.addH = addH;
-window.addS = addS;
-window.addRule = addRule;
-window.closePop = closePop;
-window.switchPopTab = switchPopTab;
+onSnapshot(CLOUD_DOC, (snapshot) => {
+    if (!snapshot.exists()) return;
+
+    const data = snapshot.data();
+
+    const defaultDb = {
+        total: 0,
+        houses: [],
+        students: [],
+        rules: [],
+        customNames: {},
+        soundOn: true,
+        maxStageIdx: 0
+    };
+
+    db = {
+        ...defaultDb,
+        ...data
+    };
+
+    render();
+});
