@@ -1,17 +1,101 @@
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged }
+from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+import { getFirestore, doc, setDoc, getDoc, onSnapshot }
+from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+
 const firebaseConfig = {
-  apiKey: "你的key",
-  authDomain: "你的project.firebaseapp.com",
-projectId: "hogwarts-a0821"
+  apiKey: "...",
+  authDomain: "...",
+  projectId: "hogwarts-a0821",
+  storageBucket: "...",
+  messagingSenderId: "...",
+  appId: "..."
 };
 
-// 🔥 防止重複初始化（很重要）
-firebase.initializeApp(firebaseConfig);
-const dbCloud = firebase.firestore();
-const CLOUD_DOC = dbCloud.collection("hogwarts").doc("main");
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const dbCloud = getFirestore(app);
+
+let userId = null;
+let isLoggedIn = false;
+
+const provider = new GoogleAuthProvider();
+
+window.loginWithGoogle = async function () {
+    try {
+        const result = await signInWithPopup(auth, provider);
+        const user = result.user;
+
+        console.log("登入成功：", user.displayName);
+        isLoggedIn = true;
+        document.getElementById("login-area").style.display = "none";
+
+        document.getElementById("user-info").innerText =
+            `已登入：${user.displayName}`;
+
+        await setupUserDoc(user.uid);
+        init();
+
+    } catch (error) {
+        console.error("登入失敗", error);
+    }
+
+    
+};
+
+async function setupUserDoc(uid) {
+    // 👉 用 Firebase UID 當作真正的 cloud id
+    userId = uid;
+
+    // 👉 重新綁定 Firestore 文件
+    CLOUD_DOC = doc(dbCloud, "users", userId, "data", "class");
+
+    const snap = await getDoc(CLOUD_DOC);
+
+    if (snap.exists()) {
+        db = snap.data() || {
+    total: 0,
+    houses: [],
+    students: [],
+    rules: [],
+    customNames: {},
+    soundOn: true
+};
+    } else {
+        db = {
+            total: 0,
+            houses: [],
+            students: [],
+            rules: [],
+            customNames: {},
+            soundOn: true
+        };
+        await setDoc(CLOUD_DOC, db);
+    }
+onSnapshot(CLOUD_DOC, (snapshot) => {
+    if (!snapshot.exists()) return;
+
+    const data = snapshot.data();
+
+    db.total = data.total || 0;
+    db.houses = data.houses || [];
+    db.students = data.students || [];
+    db.rules = data.rules || [];
+    db.customNames = data.customNames || {};
+    db.edit = data.edit || false;
+    db.soundOn = data.soundOn ?? true;
+
+    render();
+});
+
+}
+
+let CLOUD_DOC = null;
 
 
-const STORAGE_KEY = "HOGWARTS_FINAL_STABLE_ZR4";
-let db;
 // 紀錄已經被火盃抽中的學生 ID
 let drawnStudentIds = [];
 let lastEmojiTargetId = 'rule-n';
@@ -46,7 +130,12 @@ const creatures = [
 
 async function init() {
 
-    const doc = await CLOUD_DOC.get();
+    if (!CLOUD_DOC) {
+        console.log("尚未登入，不載入資料");
+        return;
+    }
+
+    const snapshot = await getDoc(CLOUD_DOC);
 
     const defaultDb = {
         total: 0,
@@ -61,12 +150,12 @@ async function init() {
         soundOn: true
     };
 
-    if (doc.exists) {
-        db = doc.data();
-    } else {
-        db = defaultDb;
-        await CLOUD_DOC.set(db);
-    }
+    if (snapshot.exists()) {
+    db = snapshot.data();
+} else {
+    db = defaultDb;
+    await setDoc(CLOUD_DOC, db);
+}
 
     if (!db.rules) db.rules = defaultDb.rules;
     if (!db.customNames) db.customNames = {};
@@ -180,6 +269,7 @@ function renderPopList() {
 }
 
 function submitScore(v) {
+    if (!requireLogin()) return;
     if(activeTarget.type === 's') {
         // 單人加分：直接針對該學生，不論狀態
         db.students[activeTarget.id].s += v;
@@ -211,6 +301,7 @@ function submitScore(v) {
     showBeastFeedback(v); 
     closePop(); 
     render();
+    saveCloud();
 }
 
 function closePop() { document.getElementById('mask').style.display='none'; document.getElementById('pop').style.display='none'; }
@@ -218,6 +309,7 @@ function closePop() { document.getElementById('mask').style.display='none'; docu
 function addRule() { 
     let tn = document.getElementById('rule-n'), tv = document.getElementById('rule-v'), tt = document.getElementById('rule-target'), t = tn.value, v = parseInt(tv.value), target = tt.value;
     if(t) { db.rules.push({t, v, target}); tn.value = ""; playSfx('up'); render(); } 
+saveCloud();
 }
 function editRule(i) {
     const r = db.rules[i];
@@ -228,18 +320,23 @@ function editRule(i) {
     db.rules[i].t = newT;
     db.rules[i].v = parseInt(newV) || 0;
     render(); 
+    saveCloud();
 }
 function delRule(idx) { db.rules.splice(idx, 1); playSfx('down'); render(); }
 
 function addH() { 
+    if (!requireLogin()) return;
     let hn = document.getElementById('in-h-n'), n = hn.value, c = document.getElementById('in-h-c').value; 
     if(n) { db.houses.push({ name: n, s: 0, c: c }); hn.value = ""; playSfx('up'); render(); 
 saveCloud();
 } 
 }
-function delHouse(idx) { db.houses.splice(idx, 1); playSfx('down'); render(); }
+function delHouse(idx) { db.houses.splice(idx, 1); playSfx('down'); render(); 
+    saveCloud();
+}
 
 function addS() { 
+    if (!requireLogin()) return;
     let sn = document.getElementById('in-s-n'), n = sn.value, h = document.getElementById('sel-h').value; 
     if(n && h) { db.students.push({ 
     id: crypto.randomUUID(),
@@ -272,6 +369,7 @@ function delStudent(idx) {
     let targetH = db.houses.find(h => h.name === student.h);
     if (targetH) targetH.s -= student.s; 
     db.students.splice(idx, 1); playSfx('down'); render(); 
+saveCloud();
 }
 
 function moveItem(list, idx, dir) {
@@ -292,8 +390,8 @@ function getActiveCreature() {
     }
 
     if (db.currentCId !== curC.id) {
-        db.currentCId = curC.id;
-        db.maxStageIdx = 0;
+        let currentCId = curC.id;
+        let maxStageIdx = 0;
     }
 
     return curC;
@@ -539,7 +637,7 @@ function renderSingleRule(r, originalIdx) {
     `;
 }
 
-init();
+
 
 document.addEventListener('click', function(e) {
     const btn = e.target.closest('.btn-emoji-toggle');
@@ -919,6 +1017,7 @@ function cycleStudentStatus(idx) {
 // --- 請確保這行在 script.js 的最上方，不要動它 ---
 
 function drawLuckyStudent() {
+    if (!requireLogin()) return;
     // 1. 初始化名單（確保它存在且是陣列）
     if (typeof drawnStudentIds === 'undefined') window.drawnStudentIds = [];
 
@@ -1046,17 +1145,38 @@ function resetDrawList() {
     alert("🔄 巫師名單已重置！");
 }
 
-CLOUD_DOC.onSnapshot(doc => {
-    if (!doc.exists) return;
-    db = { ...db, ...doc.data() };
-    render();
-});
+
 
 async function saveCloud() {
+    if (!CLOUD_DOC) return;
+
     try {
-        await CLOUD_DOC.set(db);
+        await setDoc(CLOUD_DOC, db);
         console.log("☁️ 已同步雲端");
     } catch (e) {
         console.error("同步失敗", e);
     }
 }
+
+function requireLogin() {
+    if (!isLoggedIn && !userId) {
+        alert("⚠️ 請先登入");
+        return false;
+    }
+    return true;
+}
+
+
+window.drawLuckyStudent = drawLuckyStudent;
+window.openLeaderboard = openLeaderboard;
+window.closeLeaderboard = closeLeaderboard;
+window.renderLBContent = renderLBContent;
+window.resetDrawList = resetDrawList;
+window.toggleSound = toggleSound;
+window.toggleEdit = toggleEdit;
+window.showPage = showPage;
+window.addH = addH;
+window.addS = addS;
+window.addRule = addRule;
+window.closePop = closePop;
+window.switchPopTab = switchPopTab;
