@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+</script>
+    <meta charset="UTF-8">
+    <title>霍格華茲奇獸管理系統</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <div id="mask" onclick="closePop()"></div>
+<div id="pop">
+    <h3 id="pop-title" style="text-align:center; margin-top:0;">評分項目</h3>
+    
+    <div class="pop-tabs" style="display:flex; gap:10px; margin-bottom:15px;">
+        <button id="tab-pos" class="tab-btn active" onclick="switchPopTab('pos')">➕ 獎勵項目</button>
+        <button id="tab-neg" class="tab-btn" onclick="switchPopTab('neg')">➖ 處罰條款</button>
+    </div>
+
+    <div id="pop-list" style="max-height: 300px; overflow-y: auto;">
+        </div>
+    
+    <button onclick="closePop()" style="width:100%; margin-top:15px; border:none; text-decoration:underline; cursor:pointer; background:none; opacity:0.6;">取消</button>
+</div>
+    <div id="emoji-selector">
+        <div class="emoji-tabs">
+            <div class="emoji-tab active" onclick="filterEmoji('magic', this)">🪄</div>
+            <div class="emoji-tab" onclick="filterEmoji('class', this)">🏫</div>
+            <div class="emoji-tab" onclick="filterEmoji('face', this)">😊</div>
+            <div class="emoji-tab" onclick="filterEmoji('animal', this)">🐾</div>
+            <div class="emoji-tab" onclick="filterEmoji('nature', this)">🌈</div>
+            <div class="emoji-tab" onclick="filterEmoji('food', this)">🍎</div>
+            <div class="emoji-tab" onclick="filterEmoji('activity', this)">⚽</div>
+            <div class="emoji-tab" onclick="filterEmoji('travel', this)">✈️</div>
+            <div class="emoji-tab" onclick="filterEmoji('object', this)">💡</div>
+            <div class="emoji-tab" onclick="filterEmoji('symbol', this)">❤️</div>
+            <div class="emoji-tab" onclick="filterEmoji('flag', this)">🚩</div>
+        </div>
+        <div id="emoji-container" class="emoji-picker-grid"></div>
+    </div>
+
+<aside id="side">
+        <div class="name-container">
+            <h2 id="c-name" style="margin:0;">載入中...</h2>
+        </div>
+        <div id="c-stage">(狀態)</div>
+        <div class="c-box" id="beast-display-area">
+            <span class="img-err"></span>
+            <img id="c-img" src="" onerror="this.style.opacity='0'">
+        </div>
+        <h1 id="score-total" style="font-size: 4em; margin:0;">0</h1>
+        <p style="font-weight:bold;">奇獸進化能量</p>
+        <div class="p-bar"><div id="p-fill"></div></div>
+    </aside>
+
+    <main id="main">
+        <div id="top-area">
+            <div class="scoreboard-title">學院記分板</div>
+            <div id="hg-list" class="hg-container"></div>
+        </div>
+        <nav class="nav">
+<div class="nav-left">
+<div class="nav-left" style="display:flex; gap:8px;">
+    <button class="btn-3d" onclick="openLeaderboard()" style="background: #fdf5e6 ; border-color: #d4a76a ; color: #5d4037;">👑 排行榜</button>
+    <button class="btn-3d" onclick="drawLuckyStudent()" style="background: #fff5e6 ; border-color: #ffcc99 ; color: #d35400;">🏆 火盃的考驗</button>
+
+    <button onclick="resetDrawList()" style="background:none; border:none; color:#999; font-size:20px; cursor:pointer; margin-top:2px;">🔄</button>
+</div>
+
+
+</div>
+
+<div id="scroll-mask" onclick="closeLeaderboard()" style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:1999; display:none;"></div>
+<div id="leaderboard-scroll" class="scroll-pop">
+<div class="scroll-title">👑 排行榜</div>    
+    <div style="display:flex; gap:10px; justify-content:center; margin-bottom:20px;">
+        <button id="lb-tab-house" class="tab-btn active" onclick="renderLBContent('house')">學院</button>
+        <button id="lb-tab-student" class="tab-btn" onclick="renderLBContent('student')">學生</button>
+    </div>
+
+    <div id="lb-main-content" style="min-height: 300px;"></div>
+
+    <div style="text-align:center; margin-top:20px;">
+        <button class="pop-btn" onclick="closeLeaderboard()" style="width:150px; background:#d4a76a; color:#5d4037; border-color:#5d4037;">收起卷軸</button>
+    </div>
+</div>            <div class="nav-center">
+                <button id="nav-h" class="btn-3d active" onclick="showPage('h')">🕯️ 霍格華茲大廳</button>
+                <button id="nav-b" class="btn-3d" onclick="showPage('b')">💼 奇獸皮箱</button>
+                <button id="nav-s" class="btn-3d" onclick="showPage('s')">⚙️ 系統設定</button>
+            </div>
+            <div class="nav-right">
+                <button id="sound-toggle" onclick="toggleSound()" title="切換音效">🔊</button>
+                <button id="edit-btn" class="btn-3d" onclick="toggleEdit()">消消藏</button>
+            </div>
+        </nav>
+
+        <div class="content">
+            <div id="page-h" class="page active">
+                <h4 style="border-left:8px solid var(--ink); padding-left:12px;">📜 收錄冊 (學生)</h4>
+                <div id="list-s" class="grid"></div>
+            </div>
+            <div id="page-b" class="page">
+                <h4 style="border-left:8px solid var(--ink); padding-left:12px;">📖 怪獸與他們的產地</h4>
+                <div id="book-list"></div>
+            </div>
+            <div id="page-s" class="page">
+                <div class="sec">
+                    <b>🎓 分院帽</b>
+                    <div style="position: relative; display: inline-block;">
+                        <button class="btn-emoji-toggle" onclick="toggleEmojiPicker(event, 'in-h-n')">😊 圖示</button>
+                    </div>
+                    學院：<input id="in-h-n" placeholder="學院名" style="width:100px;">&nbsp;
+                    顏色：<input type="color" id="in-h-c" value="#c29d00" style="padding:2px; height:32px; width:45px; vertical-align:middle;">&nbsp;
+                    <button class="btn-3d" onclick="addH()" style="padding:8px 12px;">創建學院</button>
+                    <hr style="margin:20px 0; opacity:0.1;">
+                    <div style="position: relative; display: inline-block;">
+                        <button class="btn-emoji-toggle" onclick="toggleEmojiPicker(event, 'in-s-n')">😊 圖示</button>
+                    </div>
+                    學生：<input id="in-s-n" placeholder="學生名" style="width:100px;">&nbsp;
+                    學院：<select id="sel-h" style="padding:6px;"></select>&nbsp;
+                    <button class="btn-3d" onclick="addS()" style="padding:8px 12px;">分院</button>
+                </div>
+                <div class="sec">
+                    <b>📜 霍格華茲校規</b>
+                    <div style="position: relative; display: inline-block;">
+                        <button class="btn-emoji-toggle" onclick="toggleEmojiPicker(event, 'rule-n')">😊 圖示</button>
+                    </div>
+                    &nbsp;項目：<input id="rule-n" placeholder="如：回答問題" style="width:140px;">&nbsp;
+                    分數：<input type="number" id="rule-v" value="5" style="width:70px;">&nbsp;
+                    適用於：<select id="rule-target" style="padding:6px;">
+                        <option value="both">全體</option>
+                        <option value="house">僅學院</option>
+                        <option value="student">僅學生</option>
+                    </select>&nbsp;
+                    <button class="btn-3d" onclick="addRule()" style="background:var(--ink); color:white; border:none; padding:8px 15px;">頒布</button>
+                    <div id="rule-display" style="margin-top:15px; display:flex; flex-wrap:wrap; gap:8px;"></div>
+                </div>
+<div class="sec" style="border-top: 1px solid #ddd; padding-top: 20px;">
+    <b>🪄 空空遺忘</b>
+    <div style="display: flex; gap: 10px; margin-top: 10px;">
+        <button class="btn-3d" style="flex: 1; background: #95a5a6; color: white; border:none;" onclick="resetScoresOnly()">復復原 (僅重設分數)</button>
+        <button class="btn-3d" style="flex: 1; background: var(--red); color: white; border:none;" onclick="fullReset()">啊哇呾喀呾啦 (清除所有資料)</button>
+    </div>
+</div>
+
+    </main>
+
+    <script src="script.js"></script>
+
+</body>
+</html>
