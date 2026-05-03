@@ -1,4 +1,7 @@
 let db = {};
+let userId = null;
+let isLoggedIn = false;
+let CLOUD_DOC = null;
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged }
@@ -17,12 +20,30 @@ const firebaseConfig = {
 };
 
 
+
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const dbCloud = getFirestore(app);
 
-let userId = null;
-let isLoggedIn = false;
+onAuthStateChanged(auth, async (user) => {
+    if (user) {
+        isLoggedIn = true;
+        userId = user.uid;
+
+        document.getElementById("user-info").innerText =
+            `已登入：${user.displayName}`;
+
+        await setupUserDoc(user.uid);
+        init();
+    } else {
+        isLoggedIn = false;
+        userId = null;
+
+        document.getElementById("user-info").innerText = "未登入";
+    }
+});
+
+
 
 const provider = new GoogleAuthProvider();
 
@@ -101,9 +122,6 @@ onSnapshot(CLOUD_DOC, (snapshot) => {
 
 }
 
-let CLOUD_DOC = null;
-
-
 // 紀錄已經被火盃抽中的學生 ID
 let drawnStudentIds = [];
 let lastEmojiTargetId = 'rule-n';
@@ -135,6 +153,14 @@ const creatures = [
     {id:"003", n:"雷鳥", g:[{t:900,l:"蛋期",i:"雷鳥蛋.png",d:"帶有雷電紋路的蛋，周遭天氣極度不穩。"},{t:1050,l:"幼年期",i:"雷鳥.png",d:"能創造微小風暴，呼風喚雨。"},{t:1200,l:"成年期",i:"雷鳥突破.png",d:"天空的主宰，擁有掌管天氣的能力。"}]},
     {id:"004", n:"鷹馬", g:[{t:1350,l:"蛋期",i:"鷹馬蛋.png",d:"覆蓋著羽毛的蛋，靠近能感受到陣陣微風。"},{t:1500,l:"幼年期",i:"鷹馬.png",d:"鷹爪馬腿，衝刺能日行千里。"},{t:1650,l:"成年期",i:"鷹馬突破.png",d:"掌管風的使者，搧翅能飛上雲霄。"}]}
 ];
+
+function requireLogin() {
+    if (!isLoggedIn) {
+        alert("請先登入 Google 帳號！");
+        return false;
+    }
+    return true;
+}
 
 async function init() {
 
@@ -1077,7 +1103,27 @@ if (!luckyOne || !luckyOne.id) return;
     `;
     document.body.appendChild(pop);
 
-    if(db.soundOn) playSfx('up');
+   
+pop.onclick = () => {
+    const container = document.getElementById('magic-ball-container');
+    container.innerHTML = `
+        <div class="reveal-name" style="
+            background: #fdf5e6;
+            padding:30px;
+            border-radius:10px;
+            text-align:center;
+            border-left: 15px solid ${themeColor};
+            box-shadow: 5px 5px 20px rgba(0,0,0,0.3);
+        ">
+            <h1 style="margin:0; font-size:40px;">${luckyOne.n}</h1>
+            <p style="margin-top:10px; color:#555;">${luckyOne.h}</p>
+        </div>
+    `;
+
+    setTimeout(() => {
+        pop.remove();
+    }, 3000);
+};
 
     let isRevealed = false; 
     const reveal = () => {
@@ -1087,39 +1133,25 @@ if (!luckyOne || !luckyOne.id) return;
 
 // ... 找到 reveal 函式內部 ...
 const container = document.getElementById('magic-ball-container');
-        container.innerHTML = `
-            <div class="reveal-name" style="background: #fdf5e6; padding:30px; border-radius:5px; text-align:center; border-left: 15px solid ${themeColor}; box-shadow: 5px 5px 20px rgba(0,0,0,0.5); width: 340px; position:relative; transform: rotate(-1deg); cursor: default;" onclick="event.stopPropagation()">
-                <div style="position:absolute; top:10px; right:10px; font-size:20px; opacity:0.3;">🏆</div>
-                <h3 style="color:#5d4037; font-family: serif; margin:0 0 10px 0;">🔥The Chosen One is：</h3>
-                
-                <div style="font-size: 40px; font-weight: bold; color: #2c3e50; margin: 10px 0;">
-                    ${luckyOne.n}
-                </div>
-                
-                <div style="color:${themeColor}; font-weight:bold; font-size:16px; margin-bottom:20px;">
-                    來自 ${luckyOne.h}
-                </div>
+container.innerHTML = `
+    <div class="reveal-name" style="
+        background: #fdf5e6;
+        padding:30px;
+        border-radius:10px;
+        text-align:center;
+        border-left: 15px solid ${themeColor};
+        box-shadow: 5px 5px 20px rgba(0,0,0,0.3);
+    ">
+        <h1 style="margin:0; font-size:40px;">${luckyOne.n}</h1>
+        <p style="margin-top:10px; color:#555;">${luckyOne.h}</p>
+    </div>
+`;
 
-                <p style="color:#5d4037; font-size:12px; margin-bottom:10px; opacity:0.7;">— 🪄咒語正確 —</p>
-                <div style="display: flex; gap: 8px; margin-bottom: 15px; justify-content: center;">
-                    <button class="btn-3d" onclick="luckyAddPoint('${luckyOne.n}', 1)" style="flex:1; background:#27ae60; color:white; border:none; padding:8px; cursor:pointer; font-size:14px;">+1</button>
-                    <button class="btn-3d" onclick="luckyAddPoint('${luckyOne.n}', 2)" style="flex:1; background:#27ae60; color:white; border:none; padding:8px; cursor:pointer; font-size:14px;">+2</button>
-                    <button class="btn-3d" onclick="luckyAddPoint('${luckyOne.n}', 3)" style="flex:1; background:#27ae60; color:white; border:none; padding:8px; cursor:pointer; font-size:14px;">+3</button>
-                </div>
+setTimeout(() => {
+    pop.remove();
+}, 3000);
 
-                <button class="btn-3d" onclick="document.getElementById('draw-pop').remove()" 
-                        style="width:100%; background:#95a5a6; color:white; border:none; padding:10px; cursor:pointer; border-radius:5px; font-size:14px;">
-                    💥咒語錯誤 (關閉)
-                </button>
-            </div>
-        `;
-
-        if(db.soundOn) playSfx('up');
-        pop.onclick = null; 
-    };
-
-    const timer = setTimeout(reveal, 2000);
-    pop.onclick = reveal;
+    
 }
 
 // 🏆 專門處理抽籤答對加分的函式
@@ -1139,7 +1171,29 @@ function luckyAddPoint(studentName, val = 1) {
 
         render(); // ✔ 你真正用的是 render()
 
-        if(db.soundOn) playSfx('up');
+                if (db.soundOn) playSfx('up');
+
+    pop.onclick = () => {
+        const container = document.getElementById('magic-ball-container');
+        container.innerHTML = `
+            <div class="reveal-name" style="
+                background: #fdf5e6;
+                padding:30px;
+                border-radius:10px;
+                text-align:center;
+                border-left: 15px solid ${themeColor};
+                box-shadow: 5px 5px 20px rgba(0,0,0,0.3);
+            ">
+                <h1 style="margin:0; font-size:40px;">${luckyOne.n}</h1>
+                <p style="margin-top:10px; color:#555;">${luckyOne.h}</p>
+            </div>
+        `;
+
+        setTimeout(() => {
+            pop.remove();
+        }, 3000);
+    };
+}
         
         alert(`✨ 梅林的鬍子啊！${student.n} +${val} 分！`);
     }
@@ -1198,3 +1252,23 @@ onSnapshot(CLOUD_DOC, (snapshot) => {
 
     render();
 });
+
+async function saveCloud() {
+    if (!CLOUD_DOC) return;
+
+    try {
+        await setDoc(CLOUD_DOC, db);
+    } catch (e) {
+        console.error("儲存失敗", e);
+    }
+}
+
+async function saveCloud() {
+    if (!CLOUD_DOC) return;
+
+    try {
+        await setDoc(CLOUD_DOC, db);
+    } catch (e) {
+        console.error("儲存失敗", e);
+    }
+}
