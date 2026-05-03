@@ -3,8 +3,9 @@ let userId = null;
 let isLoggedIn = false;
 let CLOUD_DOC = null;
 
-import { initializeApp } from "https://www.gstatic.com/firebasejs/9.0.0/firebase-app.js";
-import { getAuth, GoogleAuthProvider, signInWithPopup } from "https://www.gstatic.com/firebasejs/9.0.0/firebase-auth.js";
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged }
+from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 import { getFirestore, doc, setDoc, getDoc, onSnapshot }
 from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
@@ -108,15 +109,9 @@ onSnapshot(CLOUD_DOC, (snapshot) => {
 
     const data = snapshot.data();
 
-    db.total = data.total || 0;
-    db.houses = data.houses || [];
-    db.students = data.students || [];
-    db.rules = data.rules || [];
-    db.customNames = data.customNames || {};
-    db.edit = data.edit || false;
-    db.soundOn = data.soundOn ?? true;
+    db = data;
 
-    render();
+    requestAnimationFrame(render); // 比直接 render 穩
 });
 
 }
@@ -154,8 +149,8 @@ const creatures = [
 ];
 
 function requireLogin() {
-    if (!isLoggedIn) {
-        alert("請先登入 Google 帳號！");
+    if (!userId) {
+        alert("⚠️ 請先登入");
         return false;
     }
     return true;
@@ -423,11 +418,7 @@ function getActiveCreature() {
         }
     }
 
-    if (db.currentCId !== curC.id) {
-        let currentCId = curC.id;
-        let maxStageIdx = 0;
-    }
-
+    
     return curC;
 }
 
@@ -1156,46 +1147,21 @@ setTimeout(() => {
 // 🏆 專門處理抽籤答對加分的函式
 function luckyAddPoint(studentName, val = 1) {
     const student = db.students.find(s => s.n === studentName);
-    
-    if (student) {
-        // ✔ 正確欄位
-        student.s += val;
+    if (!student) return;
 
-        const house = db.houses.find(h => h.name === student.h);
-        if (house) {
-            house.s += val;
-        }
+    student.s += val;
 
-        db.total += val;
+    const house = db.houses.find(h => h.name === student.h);
+    if (house) house.s += val;
 
-        render(); // ✔ 你真正用的是 render()
+    db.total += val;
 
-                if (db.soundOn) playSfx('up');
+    if (db.soundOn) playSfx('up');
 
-    pop.onclick = () => {
-        const container = document.getElementById('magic-ball-container');
-        container.innerHTML = `
-            <div class="reveal-name" style="
-                background: #fdf5e6;
-                padding:30px;
-                border-radius:10px;
-                text-align:center;
-                border-left: 15px solid ${themeColor};
-                box-shadow: 5px 5px 20px rgba(0,0,0,0.3);
-            ">
-                <h1 style="margin:0; font-size:40px;">${luckyOne.n}</h1>
-                <p style="margin-top:10px; color:#555;">${luckyOne.h}</p>
-            </div>
-        `;
+    render();
 
-        setTimeout(() => {
-            pop.remove();
-        }, 3000);
-    };
+    alert(`✨ ${student.n} +${val} 分！`);
 }
-        
-        alert(`✨ 梅林的鬍子啊！${student.n} +${val} 分！`);
-    }
 
     const pop = document.getElementById('draw-pop');
     if (pop) pop.remove();
@@ -1220,54 +1186,4 @@ async function saveCloud() {
     }
 }
 
-function requireLogin() {
-    if (!isLoggedIn && !userId) {
-        alert("⚠️ 請先登入");
-        return false;
-    }
-    return true;
-}
 
-
-onSnapshot(CLOUD_DOC, (snapshot) => {
-    if (!snapshot.exists()) return;
-
-    const data = snapshot.data();
-
-    const defaultDb = {
-        total: 0,
-        houses: [],
-        students: [],
-        rules: [],
-        customNames: {},
-        soundOn: true,
-        maxStageIdx: 0
-    };
-
-    db = {
-        ...defaultDb,
-        ...data
-    };
-
-    render();
-});
-
-async function saveCloud() {
-    if (!CLOUD_DOC) return;
-
-    try {
-        await setDoc(CLOUD_DOC, db);
-    } catch (e) {
-        console.error("儲存失敗", e);
-    }
-}
-
-async function saveCloud() {
-    if (!CLOUD_DOC) return;
-
-    try {
-        await setDoc(CLOUD_DOC, db);
-    } catch (e) {
-        console.error("儲存失敗", e);
-    }
-}
